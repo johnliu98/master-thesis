@@ -1,0 +1,9 @@
+# stable baseline models
+*.zip
+
+# tensorboard logs
+*pendulum_log/*
+
+# c generated code
+*.c
+*.so

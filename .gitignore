@@ -1,0 +1,13 @@
+# latex
+*.acn
+*.aux
+*.ist
+*.lof
+*.log
+*.lol
+*.lot
+*.out
+*.toc
+
+# python cache
+*/__pycache__/*
