@@ -10,14 +10,14 @@ time_iter = iter(range(len(TIME_UNITS)))
 
 # define parameters
 T = int(1.5e2)
-N = 25
+N = 10
 
 # initialize dynamic system
 sys = Pendulum()
 controller = MPC(sys, N)
 
 # set initia values
-x = ca.DM([140 / 180 * np.pi, 0])
+x = ca.DM([160/180*np.pi, 0])
 xref = ca.DM([np.pi, 0])
 u = ca.DM([0.6])
 
@@ -26,6 +26,7 @@ start = time.time()
 for _ in range(T):
     controller.optimize(x, xref)
 end = time.time()
+
 total_time = end - start
 time_per_run = total_time / T
 

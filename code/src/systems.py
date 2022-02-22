@@ -60,7 +60,7 @@ class Pendulum:
         )
 
         return ca.Function("ode", [x, u], [ode])  
-
+    
     def initialize_figure(self):
         plt.close()
         plt.figure(figsize=(10, 5))
@@ -163,7 +163,7 @@ class Pendulum:
         self.ctrl_rl_plot = self.ax_input.step([], [], color="red", alpha=0.5, linestyle="--", label=r"$u_L$")
 
         self.ax_input.set_xlabel("time [s]")
-        self.ax_input.set_ylim(-1.1, 1.1)
+        self.ax_input.set_ylim(-0.8, 0.8)
         self.ax_input.legend(loc="upper left")
         self.ax_input.grid()
 
@@ -191,9 +191,10 @@ class Pendulum:
         add_to_plot(self.ctrl_rl_plot, ctrl_rl)
 
         # plot predictions
-        if x.shape[1] > 1:
-            t_pred = np.linspace(self.t_plot + self.DT, self.t_plot + self.DT * x.shape[1], x.shape[1])
-            self.theta_pred_plot[0].set_data(np.vstack((t_pred, x[0, :])))
+        t_steps = x.shape[1]
+        if t_steps > 1:
+            t_pred = np.linspace(self.t_plot, self.t_plot + self.DT * (t_steps - 1), t_steps)
+            self.theta_pred_plot[0].set_data(np.vstack((t_pred, x[0])))
             self.thetadot_pred_plot[0].set_data(np.vstack((t_pred, x[1, :])))
             self.ctrl_pred_plot[0].set_data(np.vstack((t_pred[:-1], u[0, :])))
 

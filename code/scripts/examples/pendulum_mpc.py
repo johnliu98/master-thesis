@@ -37,9 +37,9 @@ comp_times = []
 x = ca.DM(x0)
 for _ in range(T):
     tic = time.time()
-    x, u = controller.optimize(x, xref)
-    x, u = x.full(), u.full()
+    x, u = controller.optimize(x, xref, verbose=1)
     toc = time.time()
+    x, u = x.full(), u.full()
 
     sys.animate(x, u)
     x = sys.update(x[:, 0], u[:, 0])

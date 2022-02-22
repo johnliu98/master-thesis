@@ -1,10 +1,10 @@
-import os
+import time
 import casadi as ca
 
 IPOPT_OPTS = {
     "ipopt.print_level": 0,
-    "print_time": 0,
     "ipopt.sb": "yes",
+    "print_time": 0,
 }
 SQP_OPTS = {
     "qpsol": "qrqp",
@@ -16,7 +16,7 @@ SQP_OPTS = {
         "print_header": False,
         "print_info": False,
         "error_on_fail": False,
-    }
+    },
 }
 
 
@@ -30,7 +30,17 @@ class MPC:
         self.N = N
         self.sys = sys
 
-        self.optimize = self.build_optimize()
+        self._optimize = self.build_optimize()
+
+    def optimize(self, x0, xref, verbose=0):
+        start = time.time()
+        x, u = self._optimize(x0, xref)
+        end = time.time()
+
+        if verbose:
+            print(f"MPC optimization time: {1000*(end-start):.0f} ms")
+
+        return x, u
 
     def build_optimize(self):
         """Casadi wrapper method to build MPC function

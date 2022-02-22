@@ -1,0 +1,15 @@
+name: learning
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  - scipy
+  - numpy
+  - pandas
+  - matplotlib
+  - pip:
+    - casadi
+    - tensorflow
+    - stable-baselines3
+    - -e /home/john/Documents/master-thesis/code/
