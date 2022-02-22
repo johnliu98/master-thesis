@@ -10,4 +10,5 @@
 *.toc
 
 # python cache
-*/__pycache__/*
+**/__pycache__/*
+**/myproject.egg-info/*
