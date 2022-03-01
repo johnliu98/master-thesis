@@ -5,6 +5,7 @@ dependencies:
   - python=3.9
   - pip
   - scipy
+  - scikit-learn
   - numpy
   - pandas
   - matplotlib

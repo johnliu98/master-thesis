@@ -9,6 +9,14 @@
 *.out
 *.toc
 
+# reinforcement learning models
+*.zip
+
 # python cache
 **/__pycache__/*
+
+# python packages
 **/myproject.egg-info/*
+
+# tensorboard logs
+**/pendulum_log/*
