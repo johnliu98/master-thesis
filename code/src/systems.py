@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.ticker as ticker
 
-from utils.angle import normalize_angle
+from utils.angle import minus_pi_to_pi
 from utils.plot import add_to_plot, CircleSector
 
 import warnings
@@ -27,7 +27,7 @@ class Pendulum:
     L: float = 0.5
     M: float = 0.15
     ETA: float = 0.1
-    DT: float = 5e-2
+    DT: float = 2e-2
 
     # Animation parameters
     WIDTH: float = 0.07
@@ -43,7 +43,7 @@ class Pendulum:
         if increment_time:
             self.t += self.DT
         x_next = self._update(x, u).full().squeeze()
-        x_next[0] = normalize_angle(x_next[0])
+        x_next[0] = minus_pi_to_pi(x_next[0])
         return x_next
 
     def _build_update(self):
@@ -51,10 +51,10 @@ class Pendulum:
         u = ca.SX.sym("u", self.NU)
 
         ode = ca.vertcat(
-            x[0, :] + self.DT * x[1, :],
-            x[1, :] + self.DT * (
-                    - self.G / self.L * ca.sin(x[0, :])
-                    - self.ETA / self.M / self.L ** 2 * x[1, :]
+            x[0] + self.DT * x[1],
+            x[1] + self.DT * (
+                    - self.G / self.L * ca.sin(x[0])
+                    - self.ETA / self.M / self.L ** 2 * x[1]
                     + 1 / self.M / self.L ** 2 * u[0] 
                 )
         )
@@ -98,7 +98,7 @@ class Pendulum:
         red_sector = CircleSector(
             (0, 0),
             0.95,
-            theta1=-30,
+            theta1=-60,
             theta2=85,
             fill=True,
             facecolor="red",
@@ -110,7 +110,7 @@ class Pendulum:
         green_sector = CircleSector(
             (0, 0),
             0.95,
-            theta1=240,
+            theta1=150,
             theta2=300,
             fill=True,
             facecolor="green",
@@ -170,6 +170,9 @@ class Pendulum:
 
     def animate(self, x, u, ul=None):
         self.t_plot += self.DT
+
+        if not isinstance(x, np.ndarray):
+            raise TypeError("x is not a numpy array")
         x = x.reshape(self.NX, -1)
         u = u.reshape(self.NU, -1)
 
@@ -203,7 +206,7 @@ class Pendulum:
             ax.autoscale_view()
 
         plt.show()
-        plt.pause(0.1)
+        plt.pause(0.001)
 
 
 class Bruce:
