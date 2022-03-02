@@ -1,6 +1,8 @@
 import time
 import casadi as ca
 
+from utils.angle import normalize_from
+
 IPOPT_OPTS = {
     "ipopt.print_level": 0,
     "ipopt.sb": "yes",
@@ -22,9 +24,9 @@ SQP_OPTS = {
 
 class MPC:
 
-    INPUT_CONS = {"low": -0.6, "high": 0.6}
-    STATE_CONS = {"low": -ca.pi / 3, "high": 185 / 180 * ca.pi}
-    TERMINAL_CONS = {"low": -ca.pi / 6, "high": ca.pi / 6}
+    INPUT_CONS = {"low": -0.7, "high": 0.7}
+    STATE_CONS = {"low": -ca.pi / 6, "high": 185 / 180 * ca.pi}
+    TERMINAL_CONS = {"low": -ca.pi / 6, "high": 120 / 180 * ca.pi}
 
     def __init__(self, sys, N) -> None:
         self.N = N
@@ -33,6 +35,7 @@ class MPC:
         self._optimize = self.build_optimize()
 
     def optimize(self, x0, xref, verbose=0):
+        x0[0] = normalize_from(x0[0], -ca.pi/2)
         start = time.time()
         x, u = self._optimize(x0, xref)
         end = time.time()
@@ -69,7 +72,7 @@ class MPC:
             # state constraints
             opti.bounded(self.STATE_CONS["low"], x[0, :], self.STATE_CONS["high"]),
             # terminal contraints
-            opti.bounded(self.TERMINAL_CONS["low"], x[:, -1], self.TERMINAL_CONS["high"]),
+            # opti.bounded(self.TERMINAL_CONS["low"], x[:, -1], self.TERMINAL_CONS["high"]),
             # initial state
             x[:, 0] == x0,
         ])
@@ -113,7 +116,7 @@ class SafetyFilter(MPC):
             # state constraints
             opti.bounded(self.STATE_CONS["low"], x[0, :], self.STATE_CONS["high"]),
             # terminal contraints
-            opti.bounded(self.TERMINAL_CONS["low"], x[:, -1], self.TERMINAL_CONS["high"]),
+            # opti.bounded(self.TERMINAL_CONS["low"], x[:, -1], self.TERMINAL_CONS["high"]),
             # initial state
             x[:, 0] == x0,
         ])
