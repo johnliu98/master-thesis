@@ -37,13 +37,17 @@ while True:
     action, _ = model.predict(x, deterministic=True)
 
     ul = env.ACTIONS[action]
-    xs, us = filter.optimize(x, ul)
+    if args.safety_filter == "true":
+        xs, us = filter.optimize(x, ul)
 
     if th_prev - x[0] > 1:
         x[0] += 2 * np.pi
     th_prev = x[0]
 
-    sys.animate(xs.full(), us.full(), ul)
+    if args.safety_filter == "true":
+        sys.animate(xs.full(), us.full(), ul)
+    else:
+        sys.animate(x, ul)
     x, r, d, _ = env.step(action)
     total_cost += r
 
