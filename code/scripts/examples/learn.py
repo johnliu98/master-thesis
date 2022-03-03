@@ -28,7 +28,6 @@ env = PendulumEnv(
     fixed_init=args.fixed_init=="true",
     safety_filter=args.safety_filter=="true",
 )
-breakpoint()
 
 if args.model:
     model = sb.DQN.load(args.model)
@@ -44,4 +43,4 @@ else:
     )
 
 model.learn(total_timesteps=int(float(args.timesteps)))
-model.save(SAVE_DIR + args.model_name + f"_{args.timesteps}" + f"_{env.TIME_LIMIT}")
+model.save(SAVE_DIR + args.model_name + f"_{args.timesteps}" + f"_{args.learning_rate}" + f"_{env.TIME_LIMIT}")
