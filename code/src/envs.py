@@ -90,6 +90,8 @@ class PendulumEnv(gym.Env):
         if self.safety_filter:
             _, us = self.filter.optimize(self.x, ul)
             u = float(us[:, 0])
+        else:
+            u = ul
 
         # update system
         self.x = np.array(self.sys.update(self.x, u), dtype=np.float32)
