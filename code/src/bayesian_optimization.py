@@ -1,168 +1,179 @@
+from typing import Tuple, Union
+
 import numpy as np
-import scipy
-from sklearn.gaussian_process.kernels import ConstantKernel, WhiteKernel, RBF
-from sklearn.gaussian_process import GaussianProcessRegressor
-import warnings
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-from sklearn.gaussian_process.kernels import WhiteKernel
-
-from src.mpc import SafetyFilter
-from utils.angle import normalize_angle
-
-warnings.filterwarnings("ignore")
 
 
-class BangBang:
+class BayesianLinearRegression:
+    def __init__(
+        self, n_features: int, n_outputs: int, alpha: float, beta: float
+    ) -> None:
+        self.n_features = n_features
+        self.n_outputs = n_outputs
+        self.alpha = alpha
+        self.beta = beta
+        self.mean = np.zeros((n_features, n_outputs))
+        self.cov_inv = alpha * np.identity(n_features)
 
-    NX = 2
-    NU = 2
-    T = 70
-    X0 = np.zeros((2,))
-    XREF = np.pi
+    def learn(self, X: np.ndarray, y: Union[float, np.ndarray]) -> None:
+        X = np.atleast_2d(X)
+        y = np.atleast_2d(y)
 
-    def __init__(self, sys, filter):
-        self.sys = sys
-        self.filter = filter
-        self._run = self.sys._update.mapaccum(self.T)
-        self.data = None
+        # update inverse covariance
+        cov_inv = self.cov_inv + self.beta * X.T @ X
 
-        kernel = (
-            RBF(2, length_scale_bounds="fixed")
-            + ConstantKernel(0.5, constant_value_bounds="fixed")
-           + WhiteKernel(0.1, noise_level_bounds="fixed")
+        # update mean
+        cov = np.linalg.inv(cov_inv)
+
+        mean = cov @ (self.cov_inv @ self.mean + self.beta * X.T @ y)
+
+        self.cov_inv = cov_inv
+        self.mean = mean
+
+        return self
+
+    def predict(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        X = np.atleast_2d(X)
+
+        # compute predictive mean
+        y_pred_mean = X @ self.mean
+
+        # compute predictive standard deviation
+        cov = np.linalg.inv(self.cov_inv)
+        y_pred_var = 1 / self.beta + (X @ cov * X).sum(axis=1)
+        y_pred_std = np.sqrt(y_pred_var)
+
+
+        y_pred_mean = np.squeeze(y_pred_mean)
+        y_pred_std = np.squeeze(y_pred_std)
+
+        return y_pred_mean, y_pred_std
+
+    @property
+    def params(self):
+        return self.mean
+
+    @property
+    def covariance(self):
+        return np.linalg.inv(self.cov_inv)
+
+
+class PendulumDynamicsRegression(BayesianLinearRegression):
+
+    N_FEATURES: int = 4
+    N_OUTPUTS: int = 2
+
+    N_PLOT: int = 100
+
+    def __init__(self, *args) -> None:
+        BayesianLinearRegression.__init__(self, self.N_FEATURES, self.N_OUTPUTS, *args)
+
+        self.xs = np.empty(shape=(0, 2))
+        self.us = np.empty(shape=(0, 1))
+        self.fs = np.empty(shape=(0, 2))
+
+    def features(self, x: np.ndarray, u: Union[float, np.ndarray]) -> np.ndarray:
+        x = np.atleast_2d(x)
+        u = np.atleast_1d(u)
+
+        # model pendulum dynamics as
+        # f(x, u) = params^T [x1 sin(x0) u0]
+        feat = np.empty((x.shape[0], self.n_features))
+        feat[:, 0] = x[:, 0]
+        feat[:, 1] = x[:, 1]
+        feat[:, 2] = np.sin(x[:, 0])
+        feat[:, 3] = u[0]
+
+        return feat
+
+    def learn(
+        self,
+        x: np.ndarray,
+        u: Union[float, np.ndarray],
+        f: np.ndarray,
+    ) -> None:
+
+        feat = self.features(x, u)
+        super().learn(feat, f)
+
+        self.xs = np.vstack([self.xs, x])
+        self.us = np.vstack([self.us, u.reshape(-1, 1)])
+        self.fs = np.vstack([self.fs, f])
+
+    def predict(self, x: np.ndarray, u: np.ndarray):
+        feat = self.features(x, u)
+        y_pred_mean, y_pred_std = super().predict(feat)
+        return y_pred_mean, y_pred_std
+
+    def initialize_figure(self) -> None:
+        self.fig = plt.figure(figsize=(10, 5), num="dynamics")
+        self.fig.suptitle("Dynamics")
+        plt.ion()
+
+        X = np.meshgrid(
+            np.linspace(-4, 4, self.N_PLOT), np.linspace(-10, 10, self.N_PLOT)
         )
-        self.model = GaussianProcessRegressor(kernel=kernel)
+        self.ax_heatplot = self.fig.add_subplot(121)
+        self.heatplot = self.ax_heatplot.pcolor(
+            *X,
+            np.zeros(X[0].shape),
+            norm=mpl.colors.LogNorm(1e-3, 1e-2),
+            cmap="viridis",
+            # shading="auto",
+        )
+        self.ax_heatplot.grid()
+        self.dataplot_2d = self.ax_heatplot.scatter(
+            [], [], facecolors="None", edgecolor="k", lw=0.25
+        )
+        self.predplot = self.ax_heatplot.scatter([], [], s=5, facecolors="r")
+        self.stateplot = self.ax_heatplot.scatter([], [], s=5, facecolors="white")
+        self.fig.colorbar(self.heatplot, ax=self.ax_heatplot)
 
-    def run(self, p):
-        u = np.zeros((self.T,))
-        u[: p[0]] = self.filter.INPUT_CONS["low"]
-        u[p[0] : p[1]] = self.filter.INPUT_CONS["high"]
-        u[p[1] :] = 0
+        self.ax_heatplot.set_xlim(-4, 4)
+        self.ax_heatplot.set_ylim(-10, 10)
+        self.ax_heatplot.set_box_aspect(1)
 
-        x = self._run(self.X0, u)
-        x = np.array(x)
-        x[0] = normalize_angle(x[0])
-        return x, u
+        self.ax_surfplot = self.fig.add_subplot(122, projection="3d")
+        self.surface = self.ax_surfplot.plot_surface(*X, np.zeros(X[0].shape))
+        self.ax_surfplot.set_xlabel("x")
+        self.ax_surfplot.set_ylabel("y")
+        self.ax_surfplot.set_xlim(-4, 4)
+        self.ax_surfplot.set_ylim(-10, 10)
 
-    def objective(self, X, noise=0.05):
-        noise = np.random.normal(loc=0, scale=noise, size=(X.shape[0],))
-        total_costs = []
-        for p in X:
-            x, _ = self.run(p)
-            total_costs.append(sum((normalize_angle(self.XREF - x[0])) ** 2) / self.T / 10)
-        total_costs = np.array(total_costs) + noise
+        # X_eval = np.array(X).reshape(2, -1).T
+        # U = np.zeros(self.N_PLOT**2)
+        # feat = self.features(X_eval, U)
+        # par_true = np.array([[1, 0], [0.02, 0.94666667], [0, -0.3924], [0, 0.53333333]])
+        # mean = feat @ par_true
+        # mean = mean[:, 1].reshape(self.N_PLOT, self.N_PLOT)
+        # self.ax_surfplot.plot_surface(*X, mean)
 
-        return -total_costs
+    def animate_error(self) -> None:
+        X = np.meshgrid(
+            np.linspace(-4, 4, self.N_PLOT), np.linspace(-10, 10, self.N_PLOT)
+        )
+        X_eval = np.array(X).reshape(2, -1).T
+        U = np.zeros(self.N_PLOT**2)
+        mean, std = self.predict(X_eval, U)
+        mean, std = mean[:, 1].reshape(self.N_PLOT, self.N_PLOT), std.reshape(
+            self.N_PLOT, self.N_PLOT
+        )
 
-    def surrogate(self, X):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            return self.model.predict(X, return_std=True)
+        self.heatplot.set_array(std.ravel())
+        self.dataplot_2d.set_offsets(self.xs)
 
-    def acquisition(self, X, X_samples):
-        # calculate the best surrogate score found so far
-        yhat, _ = self.surrogate(X)
-        best = max(yhat)
-        mu, std = self.surrogate(X_samples)
-        z = (mu - best) / (std + 1e-9)
-        cdf = scipy.stats.norm.cdf(z)
-        pdf = scipy.stats.norm.pdf(z)
-        score = (mu - best) * cdf + std * pdf
-        return score
+        self.surface.remove()
+        self.surface = self.ax_surfplot.plot_surface(*X, mean, color="#1f77b4")
 
-    def get_next_x(self, X):
-        X_samples = np.meshgrid(np.arange(self.T), np.arange(self.T))
-        X_samples = np.array(X_samples).reshape(2, -1).T
-        scores = self.acquisition(X, X_samples)
-        ix = np.argmax(scores)
-        # self._not_vistied = np.delete(self._not_vistied, ix, 0)
-        return X_samples[ix]
-
-    def generate_data(self, n):
-        X = np.random.randint(self.T, size=(n, 2))
-        y = self.objective(X)
-        return X, y
-
-    def learn(self, iterations):
-        X, y = self.generate_data(100)
-
-        self.model.fit(X, y)
-
-        for i in range(iterations):
-            x = self.get_next_x(X).reshape(1, -1)
-            cost = self.objective(x)
-            print(">n=%.0f, x=[%.0f, %.0f], f()=%3f" % (i, *x.squeeze(), cost))
-            X = np.vstack((X, x))
-            y = np.hstack((y, cost))
-            self.model.fit(X, y)
-
-        ix = np.argmax(y)
-        print("Best result: x=[%.3f, %.3f], y=%.3f" % (*X[ix], y[ix]))
-
-        self.data = X
-
-        return X[ix]
-
-    def plot(self):
-        # 2, 1, figsize=(5, 5), subplot_kw={"projection": "3d"}
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 5))
-        X_plot = np.meshgrid(np.arange(self.T), np.arange(self.T))
-        X_samples = np.array(X_plot).reshape(2, -1).T
-        yest, _ = self.surrogate(X_samples)
-        ytrue = self.objective(X_samples, noise=0)
-
-        ix = np.argmax(ytrue)
-        print("True best: x=[%.3f, %.3f], y=%.3f" % (*X_samples[ix], ytrue[ix]))
-
-        n = int(np.sqrt(yest.shape[0]))
-        yest = yest.reshape(n, n)
-        ytrue = ytrue.reshape(n, n)
-
-        # trueplot = ax1.plot_surface(*X_plot, ytrue, linewidth=0, cmap="viridis")
-        # ax2.plot_surface(*X_plot, yest, linewidth=0, cmap="viridis")
-
-        trueplot = ax1.pcolormesh(*X_plot, ytrue)
-        estplot = ax2.pcolormesh(*X_plot, yest)
-        ax1.scatter(*self.data.T, s=1, color='r', alpha=0.2)
-
-        fig.colorbar(trueplot, ax=ax1)
-        fig.colorbar(estplot, ax=ax2)
-
-        for ax in (ax1, ax2):
-            ax.set_xlabel("x1")
-            ax.set_ylabel("x2")
-            ax.grid()
+        plt.draw()
 
         plt.show()
+        plt.pause(0.001)
 
+    def animate_pred(self, x_pred) -> None:
+        self.predplot.set_offsets(x_pred.T)
+        self.stateplot.set_offsets(x_pred.T[0])
 
-class SafeBangBang(BangBang):
-    def __init__(self, sys, filter):
-        super().__init__(sys, filter)
-
-        self.filter = SafetyFilter(self.sys, 55)
-
-    def safe_run(self, p):
-        ul = np.zeros((self.T,))
-        ul[: p[0]] = -self.filter.INPUT_CONS
-        ul[p[0] : p[1]] = self.filter.INPUT_CONS
-        ul[p[1] :] = 0
-        x = np.zeros((self.NX, self.T + 1))
-        u = np.zeros((self.T,))
-        x[:, 0] = self.X0
-        for i in range(self.T):
-            _, v = self.filter.optimize(x[:, i], ul[i])
-            v = v.full().squeeze()
-            x[:, i + 1] = self.sys.update(x[:, i], v[0])
-            u[i] = v[0]
-
-        return x, u
-
-    def objective(self, X, noise=0.0):
-        total_costs = []
-        for p in X:
-            print("hej")
-            x, _ = self.safe_run(p)
-            total_costs.append(sum(abs(normalize_angle(self.XREF - x[0]))) / self.T)
-            input_cost = sum((u - ul) ** 2)
-            total_costs.append((state_cost + input_cost) / self.T)
+        plt.show()
+        plt.pause(0.001)

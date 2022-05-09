@@ -3,26 +3,72 @@ import numpy as np
 import gym
 from gym import spaces
 
-from src.mpc import SafetyFilter
+from src.systems import Pendulum
+from src.mpc import PendulumFilter
 from utils.angle import minus_pi_to_pi
+
+
+class PendulumBangEnv(gym.Env):
+    """Pendulum Environment with a bang-bang controller"""
+
+    INPUT_LIM: float = 0.7
+    STATE_LIM: np.ndarray = np.array([0, 0])
+    EPISODE_LENGTH: int = 150
+    REF: float = np.pi
+
+    def __init__(self, sys: Pendulum, filter: PendulumFilter) -> None:
+        self.sys = sys
+
+        self.action_space = spaces.Discrete(10)
+        self.observation_space = spaces.Box(
+            -self.STATE_LIM, self.STATE_LIM, shape=(2,), dtype=np.float32
+        )
+
+        self.filter = filter
+
+    def reset(self) -> np.ndarray:
+        self.sys.t = 0
+        self.x = np.zeros(self.observation_space.shape, dtype=np.float32)
+        return self.x
+
+    def step(self, switch_time):
+
+        cost = (self.REF - self.x[0]) ** 2
+        for i in range(self.EPISODE_LENGTH):
+            if i <= switch_time:
+                ul = -self.INPUT_LIM
+            else:
+                ul = self.INPUT_LIM
+
+            _, us = self.filter.optimize(self.x, ul)
+            u = us[0]
+            self.x = np.array(self.sys.update(self.x, u))
+
+            cost += (self.REF - self.x[0]) ** 2
+        cost /= self.EPISODE_LENGTH
+
+        return self.x, -cost, True, {}
+
+    def render(self, mode="human"):
+        return super().render(mode)
 
 
 class PendulumEnv(gym.Env):
     """Pendulum Environment that follows gym interface"""
 
-    INPUT_LIM = 0.7
+    INPUT_LIM = 0.6
     N_DISCRETE = 3
 
-    TIME_LIMIT = 10
+    TIME_LIMIT = 3.5
     STATE_REF = np.array([[np.pi], [0]])
     ACTIONS = np.linspace(-INPUT_LIM, INPUT_LIM, N_DISCRETE)
 
     BOUNDS = np.array([np.pi, 4])
-    RESET_BOUNDS = np.array([np.pi / 3, 4])
+    RESET_BOUNDS = np.array([np.pi / 6, 4])
 
     def __init__(self, sys, swing_up_pend=True, fixed_init=True, safety_filter=True):
         self.sys = sys
-        self.filter = SafetyFilter(sys, 10)
+        self.filter = PendulumFilter(sys, 10)
 
         self.action_space = spaces.Discrete(self.N_DISCRETE)
         self.observation_space = spaces.Box(
@@ -64,7 +110,7 @@ class PendulumEnv(gym.Env):
         th, dth = x
         th_err = np.abs(minus_pi_to_pi(np.pi - th))
 
-        c = lambda t, dt: (t ** 2 + 1e-2 * dt ** 2)
+        c = lambda t, dt: (t**2 + 1e-2 * dt**2)
         if th_err < np.pi * 2 / 3:
             cost = c(th_err, dth)
         else:
@@ -77,9 +123,9 @@ class PendulumEnv(gym.Env):
         th, _ = x
         cost = minus_pi_to_pi(np.pi - th) ** 2
         return cost
-    
+
     def _safe_cost(self, dth, du):
-        return minus_pi_to_pi(dth) ** 2 + du ** 2
+        return minus_pi_to_pi(dth) ** 2 + du**2
 
     def step(self, action):
 
@@ -112,7 +158,7 @@ class SafePendulumEnv(PendulumEnv):
     def __init__(self, sys, sys_type="discrete", horizon=50):
         PendulumEnv.__init__(self, sys, sys_type=sys_type)
 
-        self.filter = SafetyFilter(sys, horizon)
+        self.filter = PendulumFilter(sys, horizon)
 
     def step(self, action):
 
