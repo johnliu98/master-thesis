@@ -10,6 +10,7 @@
 
 %% set the default lanage to english or swedish by passing an option to the documentclass - this handles the inside tile page
 \documentclass[english]{kththesis}
+%\documentclass[swedish]{kththesis}
 
 % \usepackage[style=numeric,sorting=none,backend=biber]{biblatex}
 
@@ -44,38 +45,46 @@
       \color{blue}}%
     {\end{center}\selectlanguage{english}
     }
-
-%% Personal commands
-% For simpler mathematical expressions and equations.
-\newcommand{\X}{\mathcal{X}}
-\newcommand{\U}{\mathcal{U}}
-\renewcommand{\L}{\mathcal{L}}
-\renewcommand{\S}{\mathcal{S}}
-\newcommand{\R}{\mathbb{R}}
   
 \begin{document}
+\ifinswedish
+    \selectlanguage{swedish}
+\else
 \selectlanguage{english}
+\fi
 
 
 %% Information for inside title page
-\title{Predictive Safety Filter for Learning Controllers on Changing Dynamics}
-\subtitle{Safety guarantee for reinforcement learning controllers with uncertain dynamics}
+\title{This is the title in the language of the thesis}
+\subtitle{An subtitle in the language of the thesis}
 
 % give the alternative title - i.e., if the thesis is in English, then give a Swedish title
-\alttitle{Prediktivt säkerhetsfilter för lärande kontroller med förändrande dynamik}
-\altsubtitle{Säkerhetsgaranti för förstärkningsinlärning kontroller med okänd dynamik}
+\alttitle{Detta är den svenska översättningen av titeln}
+\altsubtitle{Detta är den svenska översättningen av undertiteln}
+% alternative, if the thesis is in Swedish, then give an English title
+%\alttitle{This is the English translation of the title}
+%\altsubtitle{This is the English translation of the subtitle}
 
-\authorsLastname{Liu}
-\authorsFirstname{John}
-\email{johnliu@kth.se}
+\authorsLastname{Student}
+\authorsFirstname{Fake A.}
+\email{a@kth.se}
 \kthid{u100001}
 % If the student has an ORCiD - add it here
-% \orcid{0000-0002-00001-1234}
+\orcid{0000-0002-00001-1234}
 \authorsSchool{\schoolAcronym{EECS}}
 
-\supervisorAsLastname{Proutiere}
-\supervisorAsFirstname{Alexandre}
-\supervisorAsEmail{alepro@kth.se}
+% If there is a second author - add them here:
+\secondAuthorsLastname{Student}
+\secondAuthorsFirstname{Fake B.}
+\secondemail{b@kth.se}
+\secondkthid{u100002}
+% If the student has an ORCiD - add it here
+\secondorcid{0000-0002-00001-5678}
+\secondAuthorsSchool{\schoolAcronym{ABE}}
+
+\supervisorAsLastname{Supervisor}
+\supervisorAsFirstname{A. Busy}
+\supervisorAsEmail{sa@kth.se}
 % If the supervisor is from within KTH add their KTHID, School and Department info
 \supervisorAsKTHID{u100003}
 \supervisorAsSchool{\schoolAcronym{EECS}}
@@ -84,19 +93,19 @@
 %\supervisorAsOrganization{Timbuktu University, Department of Pseudoscience}
 
 %If there is a second supervisor add them here:
-% \supervisorBsLastname{Proutiere}
-% \supervisorBsFirstname{Alexandre}
-% \supervisorBsEmail{sb@kth.se}
+\supervisorBsLastname{Supervisor}
+\supervisorBsFirstname{Another Busy}
+\supervisorBsEmail{sb@kth.se}
 % If the supervisor is from within KTH add their KTHID, School and Department info
-% \supervisorBsKTHID{u100003}
-% \supervisorBsSchool{\schoolAcronym{ABE}}
-% \supervisorBsDepartment{Public Buildings}
+\supervisorBsKTHID{u100003}
+\supervisorBsSchool{\schoolAcronym{ABE}}
+\supervisorBsDepartment{Public Buildings}
 % other for a supervisor outside of KTH add their organization info
 %\supervisorBsOrganization{Timbuktu University, Department of Pseudoscience}
 
-\examinersLastname{Rojas}
-\examinersFirstname{Cristian}
-\examinersEmail{crro@kth.se}
+\examinersLastname{Maguire Jr.}
+\examinersFirstname{Gerald Q.}
+\examinersEmail{maguire@kth.se}
 % If the examiner is from within KTH add their KTHID, School and Department info
 \examinersKTHID{u100004}
 \examinersSchool{\schoolAcronym{EECS}}
@@ -105,12 +114,12 @@
 %\examinersOrganization{Timbuktu University, Department of Pseudoscience}
 
 
-\hostcompany{Einride AB} % Remove this line if the project was not done at a host company
+\hostcompany{Företaget AB} % Remove this line if the project was not done at a host company
 %\hostorganization{CERN}   % if there was a host organization
 
 \date{\today}
 
-\programcode{TSCRM}
+\programcode{TCOMK}
 %% Alternatively, you can say \programme{Civilingenjör Datateknik} to directly set the programme string
 
 \titlepage
@@ -123,6 +132,7 @@
 \begin{abstract}
   \markboth{\abstractname}{}
   \todo[inline]{The first abstract should be in the language of the thesis.}
+  \todo[inline, backgroundcolor=aqua]{Abstract fungerar på svenska också.}
 
 \todo[inline]{Keep in mind that most of your potential readers are only going to read your title and abstract. This is why it is important that the abstract give them enough information that they can decide is this document relevant to them or not. Otherwise the likely default choice is to ignore the rest of your document.\\
 A abstract should stand on its own, i.e., no citations, cross references to the body of the document, acronyms must be spelled out, …\\
@@ -137,9 +147,14 @@ Write an abstract\todo{Use about 1/2 A4-page (250 and 350 words).}  with the fol
   \item Results/Conclusions/Consequences/Impact: What are your key results/conclusions? What will others do based upon your results? What can be done now that you have finished - that could not be done before your thesis project was completed?\todo[inline]{The presentation of the results should be the main part of the abstract.}
 \end{itemize}
 
+\ifinswedish
+\subsection*{Nyckelord}
+5-6 nyckelord\todo{Nyckelord som beskriver innehållet i uppsatsrapporten}
+\else
 \subsection*{Keywords}
-Safe learning, Reinforcement learning, Model predictive control
-
+5-6 keywords
+\fi
+\todo[inline]{Choosing good keywords can help others to locate your paper, thesis, dissertation, … and related work.}
 Choose the most specific keyword from those used in your domain, see for example:
 ACM's Computing Classification System (2012) or
 (2014) IEEE Taxonomy. 
@@ -157,7 +172,11 @@ Since you should have both English and Swedish keywords - you might think of ord
 \end{abstract}
 \cleardoublepage
 
-\selectlanguage{swedish}
+\ifinswedish
+    \selectlanguage{english}
+\else
+    \selectlanguage{swedish}
+\fi
   \begin{abstract}
     \markboth{\abstractname}{}
     \todo[inline]{All theses at KTH are required to have an abstract in both English and Swedish.\\
@@ -178,7 +197,80 @@ Exchange students many want to include one or more abstracts in the language(s) 
   \end{abstract}
 
 \cleardoublepage
-\selectlanguage{english}
+\selectlanguage{french} \todo[inline]{Use the relevant language for abstracts for your home university.\\
+Note that you may need to augment the set of lanaguage used in polyglossia or
+babel. The following languages represent the languages that have been used in
+theses at KTH in 2018-2019, except for one in Chinese.
+}
+\begin{abstract}
+    \markboth{\abstractname}{}
+Résumé en français
+
+\subsection*{Mots clés}
+5-6 mots-clés
+\end{abstract}
+\cleardoublepage
+\selectlanguage{spanish} 
+\begin{abstract}
+    \markboth{\abstractname}{}
+Résumé en espagnol
+
+\subsection*{Palabras claves}
+5-6 Palabras claves
+\end{abstract}
+\cleardoublepage
+\selectlanguage{norsk} 
+\begin{abstract}
+    \markboth{\abstractname}{}
+Sammendrag på norsk
+
+\subsection*{Nøkkelord}
+5-6 nøkkelord
+\end{abstract}
+\cleardoublepage
+\selectlanguage{ngerman}
+\begin{abstract}
+    \markboth{\abstractname}{}
+Abstract in Deutsch
+
+\subsection*{Schlüsselwörter}
+5-6 Schlüsselwörter
+\end{abstract}
+\cleardoublepage
+\selectlanguage{danish}
+\begin{abstract}
+    \markboth{\abstractname}{}
+Abstrakt på dansk
+
+\subsection*{Søgeord}
+5-6 Søgeord
+\end{abstract}
+\cleardoublepage
+\selectlanguage{dutch}
+\begin{abstract}
+    \markboth{\abstractname}{}
+Samenvatting in het Nederlands
+
+\subsection*{Trefwoorden}
+5-6 trefwoorden
+\end{abstract}
+\cleardoublepage
+\selectlanguage{estonian}
+\begin{abstract}
+    \markboth{\abstractname}{}
+Eesti keeles kokkuvõte
+
+\subsection*{Märksõnad}
+5-6 Märksõnad
+\end{abstract}
+\cleardoublepage
+% set to the language of the body of the thesis
+\ifinswedish
+    \selectlanguage{swedish}
+\else
+    \selectlanguage{english}
+\fi
+
 \section*{Acknowledgments }
 \markboth{Acknowledgments}{}
 \todo[inline]{It is nice to acknowledge the people that have helped you. It is
@@ -215,7 +307,7 @@ I would like to thank xxxx for having yyyy.\\
 
 \listoftables
 \cleardoublepage
-\lstlistoflistings
+\lstlistoflistings\todo{If you have listings in your thesis.}
 \cleardoublepage
 \printglossary[type=\acronymtype, title={List of acronyms and abbreviations}]
 \todo[inline]{The list of acronyms and abbreviations should be in alphabetical order based on the spelling of the acronym or abbreviation.
@@ -273,6 +365,9 @@ at \SI{200}{Gbps}.
 In this thesis we will examine the use of \glspl{LAN}. In this thesis we will
 assume that \glspl{LAN} to include \glspl{WLAN}, such as \gls{WiFi}.
 
+\section{Background}
+\todo[inline, backgroundcolor=aqua]{svensk: Bakgrund}
+\label{sec:background}
 Present the background for the area. Set the context for your project – so that your reader can understand both your project and this thesis. (Give detailed background information in Chapter 2 - together with related work.)
 Sometimes it is useful to insert a system diagram here so that the reader
 knows what are the different elements and their relationship to each
@@ -357,74 +452,6 @@ the degree project and give valid reasons for rejecting the work/research.
 
 \todo[inline, backgroundcolor=aqua]{Vilken viktig litteratur och
   (forsknings-)artiklar har du studerat inom området (litteraturstudie)? }
-
-\section{Path Following}
-
-\subsection{Discrete Paths}
-
-\subsection{Frenet-Serret Frame}
-
-\section{Model Predictive Control}
-
-\begin{equation}\begin{split}
-    \min_{u \in \U} \quad &x_{N|k}^T Q_N x_{N|k} + \sum_{i=0}^{N-1} x_{i|k}^T Q x_{i|k} + u_{i|k}^T R u_{i|k} \\
-    \text{s.t.} \quad &x_{i+1|k} = f(x_{i|k}, u_{i|k}), \quad \text{for} \quad i = 0, 1, \dots, N-1 \\
-    &(x_{i|k}, u_{i|k}) \in \X \times \U, \quad \text{for} \quad i = 0, 1, \dots, N-1 \\
-    &x_{N|k} \in \X_N
-\end{split}\end{equation}
-
-\begin{itemize}
-    \item Very effective since it is using an optimal control based approach with a receding horizon.
-    \item Downside is that it is based on a predetermined model of system dynamics. Performance is then dependent on the accuracy of the model.
-    \item On the other side, using a model-based controller, we can consider input and state constraints while computing the input signals.
-    \item Also, since MPC is utilizing a receding horizon the controller has to solve an optimization problem each time step which is very computationally expensive.
-\end{itemize}
-
-\section{Reinforcement Learning}
-
-\begin{itemize}
-    \item \cite{arulkumaran2017}
-    \item Vanilla reinforcement learning do not consider a physical model of the system. Instead, it utilizes a neural network model to perform classification and regression.
-    \item The advantage of this approach is that the neural network can, in theory, learn extremely complex and nonlinear systems, while conventional parametric method can only learn linear approximations.
-    \item Reinforcement learning is often used for online learning, meaning that the controller do not need to collect preliminary data for offline training.
-    \item While this seems very promising one of the biggest challenges with reinforcement learning is that ensure convergence to a global optima, or at least a local optima with a cost close to the global cost.
-    \item Another issue with reinforcement learning is that a neural network introduces a multitude of hyperparameters which need to be carefully tuned for good performance. This task can sometimes be seen as more an art form rather than a scientific method.
-\end{itemize}
-
-\subsection{Policy Gradient}
-
-\begin{itemize}
-    \item \cite{li2019}
-    \item Policy gradient is a reinforcement learning method that is applied to systems with discrete actions domains and continuous state domains.
-    \item Policy gradient can be used when we want to avoid assuming model dynamics. It instead computes the gradient with respect to network parameters based on the cost on certain actions.
-\end{itemize}
-
-\section{Bayesian Linear Regression}
-
-\begin{itemize}
-    \item Bayesian linear regression uses prior and likelihood assumptions to estimate posterior and predictive values. This can be used to estimate linear approximations for nonlinear systems.
-    \item This method not only estimate the considered system, it also provides an uncertainty  corresponding to each value estimation.
-    \item While other linear regression methods can compute the covariance for point in the training data it cannot, however, provide a covariance for unexplored points. Nevertheless, this is possible using bayesian system identification methods.
-    \item Additionally, using a bayesian methods, we can model measurement noise in the prior estimation.
-\end{itemize}
-
-\section{Predictive Safety Filter}
-
-\begin{equation}\begin{split}
-    \min_{u \in \U} \quad &(u_\L - u_{0|k})^2 \\
-    \text{s.t.} \quad &x_{i+1|k} = f(x_{i|k}, u_{i|k}), \quad \text{for} \quad i = 0, 1, \dots, N-1 \\
-    &(x_{i|k}, u_{i|k}) \in \X \times \U, \quad \text{for} \quad i = 0, 1, \dots, N-1 \\
-    &x_{N|k} \in \X_N
-\end{split}\end{equation}
-
-\begin{itemize}
-    \item \cite{wabersich2021safe}
-    \item A predictive safety filter is used as a safeguard for learning controllers, such a reinforcement learning controller based on policy gradient. It applies the same theory as model predictive control to determine if the input signal from the learning controller is safe or not.
-    \item If the input signal is unsafe, the safety filter will make necessary adjustments while being as noninvasive as possible to the learning input signal.
-    \item With this, the predictive safety filter adopts all benefits from model predictive control and reinforcement learning as well as avoiding several of the disadvantages.
-    \item It also decouples performance and safety since the learning controller is responsible for performance and the safety filter is responsible for safety.
-\end{itemize}
-
 
 \section{Major background area 1}\todo[inline, backgroundcolor=aqua]{Viktigt bakgrundsområde 1}
 There are xxx characteristics that distinguish yyy from other information and communication technology (ICT) system, as shown in Figure~\ref{fig:lotsofstars}. Table \ref{tab:tablecaracteristics} summarizes these characteristics.
