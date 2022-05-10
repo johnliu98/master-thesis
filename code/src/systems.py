@@ -279,19 +279,19 @@ class Bruce:
     FRONT_TAG_RATIO: float = -0.4
 
     # Time interval
-    DT: float = 3e-2  # s
+    DT: float = 5e-2  # s
 
     def __init__(self, k) -> None:
 
         self._t = 0
-        self._u = 0
-        self._u_prev = 0
+        self._u = np.zeros((self.NU,))
+        self._u_prev = np.zeros((self.NU,))
         self._state = np.zeros((self.NX,))
         self._frame = np.zeros((3,))
         self._pose = np.zeros((3,))
 
         self.k = k
-        self._update_state, self._update_pose = self._build_update()
+        self._update = self._build_update()
 
         s_max = 40
         s_num = 500
@@ -305,23 +305,21 @@ class Bruce:
         self._t += self.DT
 
         # steering change contraints
-        u = self._u_prev + np.clip(
-            u - self._u_prev,
+        u[0] = self._u_prev[0] + np.clip(
+            u[0] - self._u_prev[0],
             -self.MAX_STEER_CHANGE * self.DT,
             self.MAX_STEER_CHANGE * self.DT,
         )
 
         # steering contraints
-        u = np.clip(u, -self.MAX_STEER, self.MAX_STEER)
+        u[0] = np.clip(u[0], -self.MAX_STEER, self.MAX_STEER)
 
         self._u = u
         self._u_prev = self._u
 
-        pose_next = self._update_pose(self._pose, self._state)
-        state_next = self._update_state(self._state, self._u)
+        state_next = self._update(self._state, self._u)
 
         self._state = state_next.full().squeeze()
-        self._pose = pose_next.full().squeeze()
 
         return self._state
 
@@ -340,14 +338,9 @@ class Bruce:
         yaw = pose[2]
 
         # u = d_f
-        u = ca.SX.sym("u")
-        d_f = u
+        u = ca.SX.sym("u", self.NU)
+        d_f = u[0]
         d_t = self.FRONT_TAG_RATIO * d_f
-
-        # pose dynamics
-        f_x = self.VELX * ca.cos(yaw) - vel_y * ca.sin(yaw)
-        f_y = self.VELX * ca.sin(yaw) + vel_y * ca.cos(yaw)
-        f_yaw = yaw_rate
 
         # state dynamics
         f_vel_y = (
@@ -386,12 +379,8 @@ class Bruce:
         f_a = yaw_rate - self.k(s) * f_s
 
         state_next = state + self.DT * ca.vertcat(f_s, f_n, f_a, f_vel_y, f_yaw_rate)
-        pose_next = pose + self.DT * ca.vertcat(f_x, f_y, f_yaw)
 
-        return (
-            ca.Function("state_next", [state, d_f], [state_next]),
-            ca.Function("frame_next", [pose, state], [pose_next]),
-        )
+        return ca.Function("state_next", [state, u], [state_next])
 
     def initialize_figure(self):
         plt.figure(figsize=(12, 6), num="pod")
@@ -467,11 +456,12 @@ class Bruce:
         y = self.pose[1]
         vel_y = self._state[3]
         yaw_rate = self._state[4]
+        d_f = self._u[0]
 
         # add data to plots
         vel_ys = np.array([self._t, vel_y])
         yaw_rates = np.array([self._t, yaw_rate])
-        d_fs = np.array([self._t, self._u])
+        d_fs = np.array([self._t, d_f])
 
         self.frenet.set_offsets(self.traj.pose(self._state[0]).to_array()[:2])
         add_to_plot(self.path, [x, y])

@@ -13,7 +13,6 @@ from utils.args import check_bool_arg
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--num-iterations", type=str, nargs="?", default="1")
 parser.add_argument("-t", "--time", type=float, nargs="?", default="50")
-parser.add_argument("-lr", "--learning-rate", type=str, nargs="?", default="1e-1")
 parser.add_argument("-s", "--simulation", type=str, nargs="?", default="false")
 parser.add_argument("-a", "--animate", type=str, nargs="?", default="")
 args = parser.parse_args()
@@ -40,15 +39,23 @@ for _ in range(int(args.num_iterations)):
 
         ul = ctl.compute_control(sys.VELX, *sys.err)
 
-        print(sys.state)
+        x_pred, u_pred = filter.compute_control(sys.state, [ul, 0])
+        u = u_pred[:, 0]
 
-        x_pred, u_pred = filter.compute_control(sys.state, ul)
-        u = u_pred[0]
+        st = sys.state
+        inp = u
+        print(f"#### System Info (t={sys.time:.2f}) ####")
+        print(f"s={st[0]:.3f}, n={st[1]:.3f}, a={st[2]:.3f}")
+        print(f"vel_y={st[3]:.3f}, yaw_rate={st[4]:.3f}")
+        print(f"d_f = {inp[0]:.3f}\n")
 
         if args.simulation == "true":
             sys.animate()
+
+        if args.animate:
             plt.savefig(f"./figures/{i_fig}.png")
             i_fig += 1
+
         sys.update(u)
 
 breakpoint()
