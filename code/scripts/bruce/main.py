@@ -20,11 +20,11 @@ args = parser.parse_args()
 check_bool_arg(args.simulation)
 
 s = ca.SX.sym("s")
-c = 0.2 * (ca.heaviside(s - 15) - 2 * ca.heaviside(s - 20) + ca.heaviside(s - 25))
+c = 0.1 * (ca.heaviside(s - 15) - 2 * ca.heaviside(s - 20) + ca.heaviside(s - 25))
 # c = 0.05 * (ca.heaviside(s) - 2 * ca.heaviside(s - 40 * np.pi) + ca.heaviside(s - 80 * np.pi))
 k = ca.Function("curv", [s], [c])
 
-N = 100
+N = 20
 sys = Bruce(k)
 filter = VehicleFilter(sys, N)
 ctl = Stanley(k_y=1, k_yaw=1)
@@ -37,7 +37,7 @@ for _ in range(int(args.num_iterations)):
 
     while sys.time < args.time and sys.dist_to_end > 0.2:
 
-        ul = ctl.compute_control(sys.VELX, *sys.err)
+        ul = ctl.compute_control(sys.state[3], *sys.err)
 
         x_pred, u_pred = filter.compute_control(sys.state, [ul, 0])
         u = u_pred[:, 0]
@@ -46,8 +46,8 @@ for _ in range(int(args.num_iterations)):
         inp = u
         print(f"#### System Info (t={sys.time:.2f}) ####")
         print(f"s={st[0]:.3f}, n={st[1]:.3f}, a={st[2]:.3f}")
-        print(f"vel_y={st[3]:.3f}, yaw_rate={st[4]:.3f}")
-        print(f"d_f = {inp[0]:.3f}\n")
+        print(f"vel_x={st[3]:.3f}, vel_y={st[4]:.3f}, yaw_rate={st[5]:.3f}")
+        print(f"d_f={inp[0]:.3f}, tau={inp[1]:.3f}\n")
 
         if args.simulation == "true":
             sys.animate()

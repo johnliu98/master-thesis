@@ -9,18 +9,7 @@ IPOPT_OPTS = {
     "ipopt.print_level": 0,
     "ipopt.sb": "yes",
     "print_time": 0,
-}
-SQP_OPTS = {
-    "qpsol": "qrqp",
-    "print_header": False,
-    "print_iteration": False,
-    "print_time": False,
-    "qpsol_options": {
-        "print_iter": False,
-        "print_header": False,
-        "print_info": False,
-        "error_on_fail": False,
-    },
+    "ipopt.max_iter": 10000,
 }
 
 
@@ -115,6 +104,7 @@ class MPC:
         opti.solve()
 
         return opti.to_function("optimize", [x0, xref], [x, u])
+
 
 class PendulumFilter(MPC, PendulumDynamicsRegression):
 
@@ -244,8 +234,13 @@ class VehicleFilter(MPC):
         ul = opti.parameter(self.sys.NU)
 
         # define cost function to minimize
-        # opti.minimize((ul - u[:, 0]) ** 2)
-        opti.minimize(ca.sum2(x[1, :] ** 2) + ca.sum2(x[2, :] ** 2))
+        # opti.minimize(ca.norm_2(ul - u[:, 0]) ** 2)
+        # opti.minimize((ul[0] - u[0, 0]) ** 2 + (ul[1] - u[1, 0]) ** 2)
+        opti.minimize(
+            ca.sum2(x[1, :] ** 2)
+            + ca.sum2(x[2, :] ** 2)
+            + ca.sum2(((x[3, :] - self.sys.MAX_VEL_X) / 500) ** 2)
+        )
 
         # system dynamics
         for k in range(self.N):
@@ -253,9 +248,11 @@ class VehicleFilter(MPC):
 
         # state constraints
         opti.subject_to(opti.bounded(-self.MAX_Y_ERR, x[1, :], self.MAX_Y_ERR))
+        opti.subject_to(opti.bounded(self.sys.MIN_VEL_X, x[3, :], self.sys.MAX_VEL_X))
 
         # input constraints
         opti.subject_to(opti.bounded(-self.sys.MAX_STEER, u[0, :], self.sys.MAX_STEER))
+        opti.subject_to(opti.bounded(-4, u[1, :], 2))
 
         # input change constraints
         opti.subject_to(
@@ -270,7 +267,7 @@ class VehicleFilter(MPC):
         opti.subject_to(x[:, 0] == x0)
 
         # set default values
-        opti.set_value(x0, 0)
+        opti.set_value(x0, [0, 0, 0, self.sys.MIN_VEL_X, 0, 0])
         opti.set_value(ul, 0)
 
         # solve optimization problem
