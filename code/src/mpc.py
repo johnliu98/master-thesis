@@ -204,8 +204,9 @@ class PendulumFilter(MPC, PendulumDynamicsRegression):
 
 class VehicleFilter(MPC):
 
-    MAX_Y_ERR = 1
-    TERMINAL_CONS = {"low": -ca.pi / 6, "high": ca.pi / 6}
+    MAX_Y_ERR: float = 2
+    TERM_Y_ERR: float = 1
+    TERM_YAW_ERR: float = 10 / 180 * ca.pi
 
     def __init__(self, sys, N) -> None:
         self.sys = sys
@@ -213,8 +214,8 @@ class VehicleFilter(MPC):
 
         self._compute_control = self._build_compute_control()
 
-    def compute_control(self, x0, ul):
-        x, u = self._compute_control(x0, ul)
+    def compute_control(self, x0, ul, u_prev):
+        x, u = self._compute_control(x0, ul, u_prev)
 
         x = x.full()
         u = u.full()
@@ -229,17 +230,18 @@ class VehicleFilter(MPC):
         x = opti.variable(self.sys.NX, self.N + 1)
         u = opti.variable(self.sys.NU, self.N)
         dd_f = ca.diff(u[0, :])
+        dtau = ca.diff(u[1, :])
 
         x0 = opti.parameter(self.sys.NX)
         ul = opti.parameter(self.sys.NU)
+        u_prev = opti.parameter(self.sys.NU)
 
         # define cost function to minimize
-        # opti.minimize(ca.norm_2(ul - u[:, 0]) ** 2)
         # opti.minimize((ul[0] - u[0, 0]) ** 2 + (ul[1] - u[1, 0]) ** 2)
         opti.minimize(
-            ca.sum2(x[1, :] ** 2)
+            ca.sum2(((self.sys.MAX_S - x[0, :]) / self.sys.MAX_S) ** 2)
+            + ca.sum2(x[1, :] ** 2)
             + ca.sum2(x[2, :] ** 2)
-            + ca.sum2(((x[3, :] - self.sys.MAX_VEL_X) / 500) ** 2)
         )
 
         # system dynamics
@@ -247,19 +249,46 @@ class VehicleFilter(MPC):
             opti.subject_to(x[:, k + 1] == self.sys._update(x[:, k], u[:, k]))
 
         # state constraints
-        opti.subject_to(opti.bounded(-self.MAX_Y_ERR, x[1, :], self.MAX_Y_ERR))
+        opti.subject_to(opti.bounded(-self.MAX_Y_ERR, x[1, :-1], self.MAX_Y_ERR))
         opti.subject_to(opti.bounded(self.sys.MIN_VEL_X, x[3, :], self.sys.MAX_VEL_X))
 
         # input constraints
         opti.subject_to(opti.bounded(-self.sys.MAX_STEER, u[0, :], self.sys.MAX_STEER))
-        opti.subject_to(opti.bounded(-4, u[1, :], 2))
+        opti.subject_to(
+            opti.bounded(self.sys.MIN_THROTTLE, u[1, :], self.sys.MAX_THROTTLE)
+        )
+
+        # terminal state constraints
+        opti.subject_to(opti.bounded(-self.TERM_Y_ERR, x[1, -1], self.TERM_Y_ERR))
+        opti.subject_to(opti.bounded(-self.TERM_YAW_ERR, x[2, -1], self.TERM_YAW_ERR))
 
         # input change constraints
         opti.subject_to(
             opti.bounded(
-                -self.sys.DT * self.sys.MAX_STEER_CHANGE,
+                -self.sys.DT * self.sys.MAX_DSTEER,
+                u[0, 0] - u_prev[0],
+                self.sys.DT * self.sys.MAX_DSTEER,
+            )
+        )
+        opti.subject_to(
+            opti.bounded(
+                -self.sys.DT * self.sys.MAX_DSTEER,
                 dd_f,
-                self.sys.DT * self.sys.MAX_STEER_CHANGE,
+                self.sys.DT * self.sys.MAX_DSTEER,
+            )
+        )
+        opti.subject_to(
+            opti.bounded(
+                -self.sys.DT * self.sys.MAX_DTHROTTLE,
+                u[1, 0] - u_prev[1],
+                self.sys.DT * self.sys.MAX_DTHROTTLE,
+            )
+        )
+        opti.subject_to(
+            opti.bounded(
+                -self.sys.DT * self.sys.MAX_DTHROTTLE,
+                dtau,
+                self.sys.DT * self.sys.MAX_DTHROTTLE,
             )
         )
 
@@ -267,11 +296,12 @@ class VehicleFilter(MPC):
         opti.subject_to(x[:, 0] == x0)
 
         # set default values
-        opti.set_value(x0, [0, 0, 0, self.sys.MIN_VEL_X, 0, 0])
-        opti.set_value(ul, 0)
+        opti.set_value(x0, [0, 0, 0, self.sys.MAX_VEL_X])
+        opti.set_value(ul, [0, 0])
+        opti.set_value(u_prev, [0, 0])
 
         # solve optimization problem
         opti.solver("ipopt", IPOPT_OPTS)
         opti.solve()
 
-        return opti.to_function("optimize", [x0, ul], [x, u])
+        return opti.to_function("optimize", [x0, ul, u_prev], [x, u])
