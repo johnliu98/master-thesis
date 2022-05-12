@@ -7,12 +7,11 @@ class Controller(Protocol):
     def compute_control(self, t: float, err: np.ndarray) -> np.ndarray:
         raise NotImplementedError
 
-
 class Pid:
-    def __init__(self, K, Ti=np.inf, Td=0) -> None:
-        self.K = K
-        self.Ti = Ti
-        self.Td = Td
+    def __init__(self, k, i=np.inf, d=0) -> None:
+        self.k = k
+        self.i = i
+        self.d = d
 
         self.t_prev = 0
         self.err_prev = 0
@@ -28,7 +27,7 @@ class Pid:
         self.err_prev = err
         self.int_prev = err_int
 
-        return self.K * (err + 1 / self.Ti * err_int + self.Td * err_der)
+        return self.k * (err + 1 / self.i * err_int + self.d * err_der)
 
 
 class Stanley:
@@ -37,5 +36,5 @@ class Stanley:
         self.k_yaw = k_yaw
 
 
-    def compute_control(self, vel_x, err_y, err_yaw):
+    def compute_control(self, err_y, err_yaw, vel_x):
         return -self.k_yaw * err_yaw - np.arctan(self.k_y * err_y / vel_x)

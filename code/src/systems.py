@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import casadi as ca
 
@@ -252,7 +254,7 @@ class Bruce:
     """
 
     # Dimensions
-    NX: int = 6
+    NX: int = 4
     NU: int = 2
 
     # Physical parameters
@@ -273,57 +275,71 @@ class Bruce:
     VELX: float = 15 / 3.6  # m/s
 
     # State constraints
-    MAX_VEL_X: float = 30 / 3.6  # m/s
-    MIN_VEL_X: float = 5 / 3.6  # m/s
+    MAX_VEL_X: float = 15 / 3.6  # m/s
+    MIN_VEL_X: float = 3 / 3.6  # m/s
 
     # Input contraints
     MAX_STEER: float = np.pi / 6  # rad
-    MAX_STEER_CHANGE: float = 0.5  # 0.12  # rad/s
+    MAX_DSTEER: float = np.pi / 12  # 0.12  # rad/s
+    MAX_THROTTLE: float = 2  # m/s^2
+    MIN_THROTTLE: float = -4  # m/s^2
+    MAX_DTHROTTLE: float = 2  # m/s^3
+
+    # Trajectory constraints
+    MAX_S: float = 60
+    MAX_CURV: float = 0.3
+
+    # Initial state
+    STATE0 = np.array([0, 0, 0, MIN_VEL_X])
 
     FRONT_TAG_RATIO: float = -0.4
 
     # Time interval
-    DT: float = 1e-2  # s
+    DT: float = 0.05  # s
 
     def __init__(self, k) -> None:
 
         self._t = 0
-        self._u = np.zeros((self.NU,))
         self._u_prev = np.zeros((self.NU,))
-        self._state = np.zeros((self.NX,))
-        self._state[3] = 5
+        self._state = self.STATE0
         self._frame = np.zeros((3,))
         self._pose = np.zeros((3,))
 
         self.k = k
         self._update = self._build_update()
 
-        s_max = 40
-        s_num = 500
-        s_d = np.linspace(0, s_max, s_num)
+        ds = 0.05
+        s_d = np.linspace(0, self.MAX_S, int(self.MAX_S / ds))
         curvatures = k(s_d).full().squeeze()
-        self.traj = create_trajectory(curvatures, s_max / s_num)
+        self.traj = create_trajectory(curvatures, ds)
 
     def update(self, u):
+
+        if self._t > 0:
+            # steering change contraints
+            u[0] = self._u_prev[0] + np.clip(
+                u[0] - self._u_prev[0],
+                -self.DT * self.MAX_DSTEER,
+                self.DT * self.MAX_DSTEER,
+            )
+
+            # throttle change constraints
+            u[1] = self._u_prev[1] + np.clip(
+                u[1] - self._u_prev[1],
+                -self.MAX_DTHROTTLE * self.DT,
+                self.MAX_DTHROTTLE * self.DT,
+            )
+
+        # steering contraints
+        u[0] = np.clip(u[0], -self.MAX_STEER, self.MAX_STEER)
+        u[1] = np.clip(u[1], self.MIN_THROTTLE, self.MAX_THROTTLE)
+        self._u_prev = copy.copy(u)
 
         # update time
         self._t += self.DT
 
-        # steering change contraints
-        u[0] = self._u_prev[0] + np.clip(
-            u[0] - self._u_prev[0],
-            -self.MAX_STEER_CHANGE * self.DT,
-            self.MAX_STEER_CHANGE * self.DT,
-        )
-
-        # steering contraints
-        u[0] = np.clip(u[0], -self.MAX_STEER, self.MAX_STEER)
-
-        self._u = u
-        self._u_prev = self._u
-
-        state_next = self._update(self._state, self._u)
-
+        # udpate state
+        state_next = self._update(self._state, u)
         self._state = state_next.full().squeeze()
 
         return self._state
@@ -336,58 +352,68 @@ class Bruce:
         n = state[1]
         a = state[2]
         vel_x = state[3]
-        vel_y = state[4]
-        yaw_rate = state[5]
+        # vel_y = state[4]
+        # yaw_rate = state[5]
 
         # u = d_f
         u = ca.SX.sym("u", self.NU)
         d_f = u[0]
-        d_t = self.FRONT_TAG_RATIO * d_f
         tau = u[1]
+        # d_t = self.FRONT_TAG_RATIO * d_f
 
+        """
         # state dynamics
         a_f = ca.atan((vel_y + self.LF * yaw_rate) / (vel_x + 1e-6)) - d_f
         a_r = ca.atan((vel_y - self.LR * yaw_rate) / (vel_x + 1e-6))
         a_t = ca.atan((vel_y - self.LT * yaw_rate) / (vel_x + 1e-6)) - d_t
 
+            f_vel_x = tau
+            f_vel_y = (
+                1
+                / self.M
+                * (
+                    -self.CF * a_f * ca.cos(d_f)
+                    - self.CR * a_r
+                    - self.CT * a_t * ca.cos(d_t)
+                )
+                - vel_x * yaw_rate
+            )
+            f_yaw_rate = (
+                1
+                / self.IZ
+                * (
+                    -self.CF * self.LF * a_f * ca.cos(d_f)
+                    + self.CR * self.LR * a_r
+                    + self.CT * self.LT * a_t * ca.cos(d_t)
+                )
+            )
+
+            f_s = 1 / (1 + n * self.k(s)) * (vel_x * ca.cos(a) - vel_y * ca.sin(a))
+            f_n = vel_x * ca.sin(a) + vel_y * ca.cos(a)
+            f_a = yaw_rate - self.k(s) * f_s
+        """
+
+        beta = ca.atan(self.LR / (self.LF + self.LR) * ca.tan(d_f))
+        f_s = 1 / (1 + n * self.k(s)) * vel_x * ca.cos(a + beta)
+        f_n = vel_x * ca.sin(a + beta)
+        f_a = vel_x * ca.tan(d_f) * ca.cos(beta) / (self.LF + self.LR) - self.k(s) * f_s
+
         f_vel_x = tau
-        f_vel_y = (
-            1
-            / self.M
-            * (
-                -self.CF * a_f * ca.cos(d_f)
-                - self.CR * a_r
-                - self.CT * a_t * ca.cos(d_t)
-            )
-            - vel_x * yaw_rate
-        )
-        f_yaw_rate = (
-            1
-            / self.IZ
-            * (
-                -self.CF * self.LF * a_f * ca.cos(d_f)
-                + self.CR * self.LR * a_r
-                + self.CT * self.LT * a_t * ca.cos(d_t)
-            )
-        )
 
-        f_s = 1 / (1 + n * self.k(s)) * (vel_x * ca.cos(a) - vel_y * ca.sin(a))
-        f_n = vel_x * ca.sin(a) + vel_y * ca.cos(a)
-        f_a = yaw_rate - self.k(s) * f_s
-
-        state_next = state + self.DT * ca.vertcat(
-            f_s, f_n, f_a, f_vel_x, f_vel_y, f_yaw_rate
-        )
+        # state_next = state + self.DT * ca.vertcat(
+        #     f_s, f_n, f_a, f_vel_x, f_vel_y, f_yaw_rate
+        # )
+        state_next = state + self.DT * ca.vertcat(f_s, f_n, f_a, f_vel_x)
 
         return ca.Function("state_next", [state, u], [state_next])
 
     def initialize_figure(self):
-        plt.figure(figsize=(5, 10), num="pod")
+        plt.figure(figsize=(10, 10), num="pod")
         plt.title("Pod")
         plt.ion()
 
         # pod trajectory
-        self.ax_pod = plt.subplot2grid((7, 1), (0, 0), rowspan=2, aspect="equal")
+        self.ax_pod = plt.subplot2grid((6, 1), (0, 0), rowspan=1, aspect="equal")
         self.traj.plot(self.ax_pod)
         self.path = self.ax_pod.plot(
             [],
@@ -397,73 +423,142 @@ class Bruce:
             label="path",
             zorder=10,
         )
+        self.path_pred = self.ax_pod.plot(
+            [],
+            [],
+            color="k",
+            linewidth=1,
+            linestyle="--",
+            label="pred",
+        )
         self.frenet = self.ax_pod.scatter(
             [], [], s=5, color="r", label="frenet origin", zorder=9
         )
-        self.ax_pod.set_ylim(-4, 10)
+        # self.ax_pod.set_ylim(-1, 6)
         self.ax_pod.set_xlabel("x [m]")
         self.ax_pod.set_ylabel("y [m]")
 
+        # Lateral error
+        self.ax_n = plt.subplot2grid((6, 1), (1, 0), aspect="auto")
+        self.n = self.ax_n.plot(
+            [],
+            [],
+            color="#1f77b4",
+            linewidth=1,
+        )
+        self.n_pred = self.ax_n.plot(
+            [],
+            [],
+            color="#1f77b4",
+            linewidth=1,
+            linestyle="--",
+        )
+        self.ax_n.set_ylabel(r"$n$ [m]")
+        self.ax_n.set_ylim(-2.5, 2.5)
+
+        # Angular error
+        self.ax_a = plt.subplot2grid((6, 1), (2, 0), aspect="auto")
+        self.a = self.ax_a.plot(
+            [],
+            [],
+            color="#1f77b4",
+            linewidth=1,
+        )
+        self.a_pred = self.ax_a.plot(
+            [],
+            [],
+            color="#1f77b4",
+            linewidth=1,
+            linestyle="--",
+        )
+        self.ax_a.set_ylabel(r"$\alpha$ [rad]")
+        self.ax_a.set_ylim(-np.pi / 4, np.pi / 4)
+
         # Longitudinal velocity
-        self.ax_velx = plt.subplot2grid((7, 1), (2, 0), aspect="auto")
+        self.ax_velx = plt.subplot2grid((6, 1), (3, 0), aspect="auto")
         self.velx = self.ax_velx.plot(
             [],
             [],
             color="#1f77b4",
             linewidth=1,
         )
-        self.ax_velx.set_ylabel(r"$v_x$ [m/s]")
-        self.ax_velx.set_ylim(0, 10)
-
-        # lateral velocity
-        self.ax_vely = plt.subplot2grid((7, 1), (3, 0), aspect="auto")
-        self.vely = self.ax_vely.plot(
+        self.velx_pred = self.ax_velx.plot(
             [],
             [],
             color="#1f77b4",
             linewidth=1,
+            linestyle="--",
         )
-        self.ax_vely.set_ylabel(r"$v_y$ [m/s]")
-        self.ax_vely.set_ylim(-1.0, 1.0)
+        self.ax_velx.set_ylabel(r"$v_x$ [m/s]")
+        self.ax_velx.set_ylim(0, 5)
 
-        # yaw rate
-        self.ax_yawrate = plt.subplot2grid((7, 1), (4, 0), aspect="auto")
-        self.yawrate = self.ax_yawrate.plot(
-            [],
-            [],
-            color="#ff7f0e",
-            linewidth=1,
-        )
-        self.ax_yawrate.set_ylabel(r"$\varphi$ [rad/s]")
-        self.ax_yawrate.set_ylim(-1.0, 1.0)
+        """
+            # lateral velocity
+            self.ax_vely = plt.subplot2grid((6, 1), (2, 0), aspect="auto")
+            self.vely = self.ax_vely.plot(
+                [],
+                [],
+                color="#1f77b4",
+                linewidth=1,
+            )
+            self.ax_vely.set_ylabel(r"$v_y$ [m/s]")
+            self.ax_vely.set_ylim(-1.0, 1.0)
+
+            # yaw rate
+            self.ax_yawrate = plt.subplot2grid((6, 1), (3, 0), aspect="auto")
+            self.yawrate = self.ax_yawrate.plot(
+                [],
+                [],
+                color="#ff7f0e",
+                linewidth=1,
+            )
+            self.ax_yawrate.set_ylabel(r"$\varphi$ [rad/s]")
+            self.ax_yawrate.set_ylim(-1.0, 1.0)
+        """
 
         # steering angle
-        self.ax_steer = plt.subplot2grid((7, 1), (5, 0), aspect="auto")
+        self.ax_steer = plt.subplot2grid((6, 1), (4, 0), aspect="auto")
         self.steer = self.ax_steer.step(
             [],
             [],
             color="green",
             linewidth=1,
         )
+        self.steer_pred = self.ax_steer.step(
+            [],
+            [],
+            color="green",
+            linewidth=1,
+            linestyle="--",
+        )
         self.ax_steer.set_ylabel(r"$\delta_f$ [rad]")
         self.ax_steer.set_ylim(-0.6, 0.6)
 
         # throttle
-        self.ax_throttle = plt.subplot2grid((7, 1), (6, 0), aspect="auto")
+        self.ax_throttle = plt.subplot2grid((6, 1), (5, 0), aspect="auto")
         self.throttle = self.ax_throttle.step(
             [],
             [],
             color="green",
             linewidth=1,
         )
+        self.throttle_pred = self.ax_throttle.step(
+            [],
+            [],
+            color="green",
+            linewidth=1,
+            linestyle="--",
+        )
         self.ax_throttle.set_xlabel("time [s]")
         self.ax_throttle.set_ylabel(r"$\tau$ [m/s$^2$]")
         self.ax_throttle.set_ylim(-4.5, 2.5)
 
         self.axs = [
+            self.ax_n,
+            self.ax_a,
             self.ax_velx,
-            self.ax_vely,
-            self.ax_yawrate,
+            # self.ax_vely,
+            # self.ax_yawrate,
             self.ax_steer,
             self.ax_throttle,
         ]
@@ -473,32 +568,50 @@ class Bruce:
             ax.grid()
             ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
         self.ax_pod.grid()
-        self.ax_pod.legend(loc="upper left")
+        # self.ax_pod.legend(loc="upper left")
 
-    def animate(self):
+        plt.tight_layout()
+
+    def animate(self, x_pred, u_pred):
 
         x = self.pose[0]
         y = self.pose[1]
+        n = self._state[1]
+        alpha = self._state[2]
         vel_x = self._state[3]
-        vel_y = self._state[4]
-        yaw_rate = self._state[5]
-        d_f = self._u[0]
-        tau = self._u[1]
+        # vel_y = self._state[4]
+        # yaw_rate = self._state[5]
+        d_f = self._u_prev[0]
+        tau = self._u_prev[1]
 
         # add data to plots
+        ns = np.array([self._t, n])
+        alphas = np.array([self._t, alpha])
         vel_xs = np.array([self._t, vel_x])
-        vel_ys = np.array([self._t, vel_y])
-        yaw_rates = np.array([self._t, yaw_rate])
+        # vel_ys = np.array([self._t, vel_y])
+        # yaw_rates = np.array([self._t, yaw_rate])
         d_fs = np.array([self._t, d_f])
         taus = np.array([self._t, tau])
 
         self.frenet.set_offsets(self.traj.pose(self._state[0]).to_array()[:2])
         add_to_plot(self.path, [x, y])
+        add_to_plot(self.n, ns)
+        add_to_plot(self.a, alphas)
         add_to_plot(self.velx, vel_xs)
-        add_to_plot(self.vely, vel_ys)
-        add_to_plot(self.yawrate, yaw_rates)
+        # add_to_plot(self.vely, vel_ys)
+        # add_to_plot(self.yawrate, yaw_rates)
         add_to_plot(self.steer, d_fs)
         add_to_plot(self.throttle, taus)
+
+        N = x_pred.shape[1] - 1
+        t_pred = np.linspace(self._t, self._t + N * self.DT, N + 1)
+        pose_pred = self.frenet_to_cartesian(x_pred)
+        self.path_pred[0].set_data(np.vstack((pose_pred[0, :], pose_pred[1, :])))
+        self.n_pred[0].set_data(np.vstack((t_pred, x_pred[1, :])))
+        self.a_pred[0].set_data(np.vstack((t_pred, x_pred[2, :])))
+        self.velx_pred[0].set_data(np.vstack((t_pred, x_pred[3, :])))
+        self.steer_pred[0].set_data(np.vstack((t_pred[:-1], u_pred[0, :])))
+        self.throttle_pred[0].set_data(np.vstack((t_pred[:-1], u_pred[1, :])))
 
         for ax in self.axs:
             ax.relim()
@@ -506,9 +619,22 @@ class Bruce:
         self.ax_pod.relim()
         self.ax_pod.autoscale_view()
 
-        plt.tight_layout()
-        plt.show()
+        # plt.tight_layout()
         plt.pause(1e-3)
+        plt.show()
+
+    def frenet_to_cartesian(self, state):
+        n = state[1, :]
+        a = state[2, :]
+        v = state[3, :]
+
+        frenet = np.array([self.traj.pose(s).to_array() for s in state[0]]).T
+        x_f, y_f, yaw_f = frenet
+
+        x = x_f + n * np.sin(yaw_f)
+        y = y_f + n * np.cos(yaw_f)
+        yaw = yaw_f + a
+        return np.vstack([x, y, yaw, v])
 
     @property
     def time(self):
@@ -519,8 +645,10 @@ class Bruce:
         return self._state
 
     @property
-    def err(self):
-        return self._state[1:3]
+    def err_front_axis(self):
+        n = self._state[1]
+        a = self._state[2]
+        return np.array([n + self.LF * np.sin(a), a])
 
     @property
     def pose(self):
@@ -533,6 +661,19 @@ class Bruce:
         y = frenet.y + n * np.cos(frenet.yaw)
         yaw = frenet.yaw + a
         return np.array([x, y, yaw])
+
+    @property
+    def desired_vel_x(self):
+        curv = self.k(self._state[0]).__float__()
+        return (
+            self.MAX_CURV
+            * self.MAX_VEL_X
+            * self.MIN_VEL_X
+            / (
+                self.MAX_CURV * self.MIN_VEL_X
+                + (self.MAX_VEL_X - self.MIN_VEL_X) * np.abs(curv)
+            )
+        )
 
     @property
     def dist_to_end(self):
