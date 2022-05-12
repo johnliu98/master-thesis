@@ -35,6 +35,7 @@ def dot_product(p1: Pose, p2: Pose) -> float:
 @dataclass
 class Trajectory:
     poses: list[Pose]
+    width: float = 4
 
     def compute_errors(self, p: Pose):
         dist = np.array([distance(p, p_) for p_ in self.poses])
@@ -58,7 +59,22 @@ class Trajectory:
         return self.poses[-1]
 
     def plot(self, ax) -> None:
-        ax.plot([p.x for p in self.poses], [p.y for p in self.poses], label="ref", zorder=0)
+        ax.plot(
+            [p.x for p in self.poses], [p.y for p in self.poses], label="ref", zorder=0
+        )
+        ax.plot(
+            [p.x - self.width / 2 * np.sin(p.yaw) for p in self.poses],
+            [p.y + self.width / 2 * np.cos(p.yaw) for p in self.poses],
+            color="grey",
+            label="road",
+            zorder=0,
+        )
+        ax.plot(
+            [p.x + self.width / 2 * np.sin(p.yaw) for p in self.poses],
+            [p.y - self.width / 2 * np.cos(p.yaw) for p in self.poses],
+            color="grey",
+            zorder=0,
+        )
 
 
 def create_trajectory(curvatures: list[float], ds: float) -> list[Pose]:
