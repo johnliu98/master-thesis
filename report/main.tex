@@ -321,7 +321,23 @@ If possible, end this section with a question as a problem statement.
 % Research Question
 \subsection{Original problem and definition}
 \todo[inline, backgroundcolor=aqua]{Ursprungligt problem och definition}
-Some text
+
+\begin{itemize}
+    \item The simulation system is a vehicle.
+    \item Take a path described by the curvature function $\gamma(s): [0,
+        \infty) \rightarrow \Gamma$, where $s$ is the distance along the path.
+    \item We have a reinforcement learning controller that is able to follow
+        the path $\gamma(s)$ up to a certain margin of error.
+    \item Now, impose additional state constraints that require the vehicle to be
+        contained a set distance from the path at all times when training the
+        controller.
+    \item The reinforcement controller is unable to satisfy the additional
+        constraints.
+    \item Nevertheless, can we couple a predictive safety filter to system such
+        that the constraints are indeed satisfied? And to what extent can a
+        predictive safety filter improve the safety during training.
+\end{itemize}
+
 
 \subsection{Scientific and engineering issues}\todo[inline, backgroundcolor=aqua]{Vetenskaplig och ingenjörsmässig frågeställning}
 some text
