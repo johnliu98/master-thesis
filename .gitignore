@@ -20,3 +20,15 @@
 
 # tensorboard logs
 **/pendulum_log/*
+
+# gif figures
+**/codes/scripts/bruce/figures/*
+**/codes/scripts/pendulum/figures/*
+
+# tmp directories
+**/tmp/*
+
+# research articles
+**/articles/*
+
+todo-master-thesis.txt

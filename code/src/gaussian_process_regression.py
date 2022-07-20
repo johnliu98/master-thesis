@@ -84,6 +84,69 @@ class BangBangPolicy:
         plt.show()
 
 
+class StanleyPolicy:
+
+    NX: int = 2
+    NY: int = 1
+
+    MAX_K_YAW: float = 1
+    MAX_K_Y: float = 1
+
+    KERNEL = RBF(0.1, length_scale_bounds="fixed") + WhiteKernel(
+        0.001, noise_level_bounds="fixed"
+    )
+    MODEL = GaussianProcessRegressor(KERNEL)
+
+    N_SAMPLES: int = 10000
+
+    def __init__(self):
+        self.X = np.empty((0, self.NX))
+        self.y = np.empty((0))
+
+    def surrogate(self, X):
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mean, std = self.MODEL.predict(X, return_std=True)
+            return mean, std
+
+    def acquisition(self, X, X_samples):
+        yhat, _ = self.surrogate(X)
+        best = max(yhat)
+        mu, std = self.surrogate(X_samples)
+        z = (mu - best) / (std + 1e-9)
+        cdf = scipy.stats.norm.cdf(z)
+        pdf = scipy.stats.norm.pdf(z)
+
+        # Expected Improvement
+        return (mu - best) * cdf + std * pdf
+
+    def get_next_x(self, X):
+        X_samples = np.random.rand(self.N_SAMPLES, self.NX)
+        X_samples[:, 0] *= self.MAX_K_YAW
+        X_samples[:, 1] *= self.MAX_K_Y
+        # X_samples = self.MAX_K * np.random.rand(self.N_SAMPLES, 1)
+        scores = self.acquisition(X, X_samples)
+        ix = np.argmax(scores)
+
+        return X_samples[ix]
+
+    def learn(self, X, y):
+        X = np.atleast_2d(X).reshape(-1, self.NX)
+        y = np.atleast_1d(y)
+
+        self.X = np.vstack((self.X, X))
+        self.y = np.hstack((self.y, y))
+        self.MODEL.fit(self.X, self.y)
+        x = self.get_next_x(self.X).reshape(1, -1)
+
+        return x[0, 0], x[0, 1]
+
+    def predict(self):
+        i = np.argmax(self.y)
+        return self.X[i, 0], self.X[i, 1], self.y[i]
+
+
 class BangBang:
 
     NX = 2
@@ -145,7 +208,6 @@ class BangBang:
 
         # Entropy Search
         tmp = 0.5 * z * pdf / cdf - np.log(cdf)
-        breakpoint()
         return np.mean(tmp, axis=1, keepdims=True)
 
     def get_next_x(self, X):

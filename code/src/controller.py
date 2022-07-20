@@ -31,10 +31,11 @@ class Pid:
 
 
 class Stanley:
-    def __init__(self, k_y: float, k_yaw: float) -> None:
+    def __init__(self, k_y: float, k_yaw: float = 1) -> None:
         self.k_y = k_y
         self.k_yaw = k_yaw
 
 
     def compute_control(self, err_y, err_yaw, vel_x):
-        return -self.k_yaw * err_yaw - np.arctan(self.k_y * err_y / vel_x)
+        # return -self.k_yaw * err_yaw - np.arctan(self.k_y * err_y / vel_x)
+        return -self.k_yaw * err_yaw - self.k_y * err_y
